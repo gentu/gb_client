@@ -13,7 +13,7 @@ class Site_GB
     @agent.user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2490.80 Safari/537.36'
     @agent.follow_meta_refresh = true
 
-    String $coupon
+    $coupon = ''
   end
 
   def save_cookies
@@ -46,20 +46,21 @@ class Site_GB
   def cart
     url = 'http://cart.gearbest.com/m-flow-a-cart.htm'
     page = @agent.get url
-    page.search('dd.js_productCanbuy').each do |item|     
+    page.search('dd.js_productCanbuy').each do |item|  
+      pcs = item.at('div.t_name').at('input')['value']
       name = item.at('div.t_name').at('a').children
       input_box = item.at('div.t_check').at('input')
       value = input_box['value']
       id = input_box['data-goods_id']
       checked = input_box['checked'].eql?('checked')
-      puts "#{checked} ID:#{id} CART:#{value} #{name}"
+      puts "#{checked} #{pcs}pcs ID:#{id} CART:#{value} #{name}"
     end
     puts "Coupon: #{page.at('div.code-input-wrap').at('input')['value']}"
   end
 
-  def set_quantity
+  def set_quantity item, pcs
     url = 'http://cart.gearbest.com/m-flow-a-update_cart.htm'
-    params = { 'rid' => 109253929, 'goods_number' => 1, 'token' => '', 'PayerID' => '' }
+    params = { 'rid' => item, 'goods_number' => pcs, 'token' => '', 'PayerID' => '' }
     @agent.post(url, params, {'Content-Type' => 'application/x-www-form-urlencoded; charset=UTF-8'})
   end
 
@@ -69,7 +70,8 @@ class Site_GB
 
   def select items
     url = "http://cart.gearbest.com/m-flow-a-cart.htm?"
-    p @agent.get url + $coupon + "checkgoods=#{items[0]}&"+"_=#{DateTime.now.strftime('%Q')}"
+    page = @agent.get url + $coupon + "checkgoods=#{items[0]}&"+"_=#{DateTime.now.strftime('%Q')}"
+    puts page.at('p.apply_msg').children.to_s.lstrip.strip
   end
 
   def order
@@ -95,8 +97,8 @@ OptionParser.new do |opts|
     $coupon = "pcode=#{coupon}&"
   end
 
-  opts.on( '-q', '--quantity', 'quantity' ) do
-    site.set_quantity
+  opts.on( '-q', '--quantity item_id,pcs', Array, 'quantity' ) do |item|
+    site.set_quantity item[0], item[1]
   end
 
   opts.on( '-r', '--clear_coupon', 'Clear coupon' ) do
